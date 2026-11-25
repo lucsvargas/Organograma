@@ -2539,9 +2539,14 @@ function saveTourConfig(andPreview) {
 }
 
 /* ==========================================================================
-   MODO EDIÇÃO E CRUD DE POSIÇÕES
+   MODO EDIÇÃO E CRUD DE POSIÇÕES (COM BLOQUEIO POR PIN ANTES DE ENTRAR)
    ========================================================================== */
-function setAppMode(mode) {
+async function setAppMode(mode) {
+  if (mode === 'edit') {
+    const allowed = await OrgStorage.ensureEditAccess();
+    if (!allowed) return;
+  }
+
   currentAppMode = mode;
   const isEdit = (mode === 'edit');
   const btnNav = document.getElementById('btn-mode-nav');
@@ -2635,10 +2640,13 @@ function populateEditOrderSelect(preselectedIndex) {
   orderSelect.innerHTML = optionsHtml;
 }
 
-function openEditModal(nodeId) {
+async function openEditModal(nodeId) {
   hideTooltip();
   const node = mutableOrgData[nodeId];
   if (!node) return;
+
+  const allowed = await OrgStorage.ensureEditAccess();
+  if (!allowed) return;
 
   document.getElementById('edit-node-id').value = nodeId;
   document.getElementById('edit-name').value = node.name || '';
@@ -2890,7 +2898,7 @@ function closeExportModal() {
 function exportDataJSON() {
   const exportPayload = {
     company: 'Betha Sistemas',
-    version: '4.0-vercel-sync',
+    version: '4.1-vercel-pin',
     exportDate: new Date().toISOString(),
     totalPositions: Object.keys(mutableOrgData).length,
     structure: mutableOrgData,
@@ -3065,11 +3073,11 @@ function confirmDeleteNode() {
 function escapeHtml(str) {
   if (!str) return '';
   return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
+    .replace(/&/g, '&')
+    .replace(/</g, '<')
+    .replace(/>/g, '>')
+    .replace(/"/g, '"')
+    .replace(/'/g, ''');
 }
 
 function showToast(msg, type = 'info') {
