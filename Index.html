@@ -1,0 +1,697 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="artifact-type" content="dashboard">
+  <meta name="design-style" content="showroom">
+  <title>Organograma Corporativo — Betha Sistemas</title>
+
+  <!-- Google Fonts: Inter Tight & Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700;800&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Estilos da Aplicação -->
+  <link rel="stylesheet" href="css/styles.css">
+
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@1.43.0/dist/umd/lucide.min.js" defer></script>
+</head>
+<body>
+
+  <div class="app-wrapper">
+    <!-- APP MASTHEAD -->
+    <header class="app-header">
+      <div class="header-main-row">
+        <div class="brand-group">
+          <div class="brand-logo-badge" title="Betha Sistemas">
+            <i data-lucide="building-2"></i>
+            <span>BETHA</span>
+          </div>
+          <div class="brand-titles">
+            <h1 class="brand-title">
+              Organograma Corporativo Interativo
+              <span class="onboarding-badge"><i data-lucide="compass" style="width:12px;height:12px;"></i> Onboarding</span>
+              <span id="sync-status-badge" class="sync-status-badge sync-loading" title="Status de sincronização com a nuvem">Sincronizando...</span>
+            </h1>
+            <span class="brand-subtitle">Estrutura organizacional oficial, lideranças e mapa de conexões para novos colaboradores</span>
+          </div>
+        </div>
+
+        <div class="header-mode-controls">
+          <!-- Modo de Operação (Navegação vs Edição) -->
+          <div class="mode-toggle-group" role="tablist" aria-label="Modo da Aplicação">
+            <button class="mode-toggle-btn active" id="btn-mode-nav" onclick="setAppMode('nav')" role="tab" aria-selected="true" title="Modo Navegação e Consulta">
+              <i data-lucide="eye" style="width:13px;height:13px;"></i> Navegação
+            </button>
+            <button class="mode-toggle-btn" id="btn-mode-edit" onclick="setAppMode('edit')" role="tab" aria-selected="false" title="Modo Edição e Gestão">
+              <i data-lucide="pencil" style="width:13px;height:13px;"></i> Edição
+            </button>
+          </div>
+
+          <!-- Visualização (Árvore vs Grade) -->
+          <div class="view-toggle-group" role="tablist" aria-label="Visualização do organograma">
+            <button class="view-toggle-btn active" id="btn-view-canvas" onclick="setViewMode('canvas')" role="tab" aria-selected="true">
+              <i data-lucide="git-fork" style="width:14px;height:14px;"></i> Árvore Interativa
+            </button>
+            <button class="view-toggle-btn" id="btn-view-list" onclick="setViewMode('list')" role="tab" aria-selected="false">
+              <i data-lucide="layout-grid" style="width:14px;height:14px;"></i> Grade de Áreas
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="header-actions-row">
+        <!-- Live Search -->
+        <div class="search-container">
+          <span class="search-icon"><i data-lucide="search" style="width:16px;height:16px;"></i></span>
+          <input type="text" id="node-search-input" class="search-input" placeholder="Buscar cargo, liderança ou área (ex: Tecnologia, Wellington, Comercial)..." oninput="handleSearch(this.value)">
+          <button id="search-clear-btn" class="search-clear-btn" onclick="clearSearch()" title="Limpar busca">
+            <i data-lucide="x" style="width:14px;height:14px;"></i>
+          </button>
+        </div>
+
+        <!-- Controls & Tour Button -->
+        <div class="toolbar-buttons">
+          <button class="btn btn-secondary" id="btn-toolbar-add" onclick="openAddNodeModal()" style="display:none;" title="Adicionar nova posição hierárquica">
+            <i data-lucide="user-plus"></i> Nova Posição
+          </button>
+          <button class="btn btn-outline" id="btn-toolbar-export" onclick="openExportModal()" style="display:none;" title="Backup, exportação e restauração">
+            <i data-lucide="database"></i> Backup
+          </button>
+          <button class="btn btn-primary" id="btn-tour-onboarding" onclick="handleTourButtonClick()">
+            <i data-lucide="sparkles" id="btn-tour-onboarding-icon"></i> <span id="btn-tour-onboarding-label">Tour de Onboarding</span>
+          </button>
+          <button class="btn btn-secondary" onclick="toggleExpandAll()" id="btn-toggle-branches">
+            <i data-lucide="chevrons-down-up"></i> <span id="lbl-toggle-branches">Recolher Áreas</span>
+          </button>
+          <button class="btn btn-outline" onclick="resetCanvasTransform()" title="Redefinir visualização e centralizar">
+            <i data-lucide="scan"></i> Centralizar
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Banner Informativo do Modo Edição -->
+    <div class="edit-mode-banner" id="edit-mode-banner">
+      <div class="edit-banner-left">
+        <i data-lucide="info" style="width:16px;height:16px;color:var(--primary);"></i>
+        <span><strong>Modo Edição Ativo:</strong> Alterações são salvas automaticamente para todos os usuários. Arraste cards, use as setas ou clique no lápis para editar.</span>
+      </div>
+      <div class="edit-banner-actions">
+        <button class="btn btn-outline btn-compact" onclick="openTourEditModal()" title="Editar o botão e as etapas do Tour de Onboarding">
+          <i data-lucide="sparkles" style="width:12px;height:12px;"></i> Editar Tour
+        </button>
+        <button class="btn btn-outline btn-compact" onclick="resetAllNodeOffsets()" title="Alinhar todos os cards movidos manualmente de volta à grade hierárquica">
+          <i data-lucide="align-center" style="width:12px;height:12px;"></i> Alinhar Cards
+        </button>
+        <button class="btn btn-outline btn-compact" onclick="openAddNodeModal()">
+          <i data-lucide="user-plus" style="width:12px;height:12px;"></i> Nova Posição
+        </button>
+        <button class="btn btn-outline btn-compact" onclick="openExportModal()">
+          <i data-lucide="database" style="width:12px;height:12px;"></i> Backup &amp; Dados
+        </button>
+        <button class="btn btn-primary btn-compact" onclick="setAppMode('nav')">
+          <i data-lucide="check" style="width:12px;height:12px;"></i> Concluir Edição
+        </button>
+      </div>
+    </div>
+
+    <!-- WORKSPACE (CANVAS + LIST) -->
+    <main class="workspace-area">
+      <!-- 1. INTERACTIVE CANVAS VIEW -->
+      <div class="canvas-viewport" id="canvas-viewport" onmousedown="handleCanvasMouseDown(event)">
+        <div class="canvas-world" id="canvas-world">
+          <svg class="connections-svg" id="connections-svg"></svg>
+          <div class="nodes-hierarchy-layer" id="nodes-tree-root"></div>
+        </div>
+
+        <!-- Floating Canvas Navigation Toolbar -->
+        <div class="canvas-controls-toolbar" aria-label="Controles de zoom e navegação do canvas">
+          <button class="ctrl-btn" onclick="zoomIn()" title="Aproximar (+)"><i data-lucide="zoom-in"></i></button>
+          <span class="zoom-level-text" id="zoom-text-display">100%</span>
+          <button class="ctrl-btn" onclick="zoomOut()" title="Afastar (-)"><i data-lucide="zoom-out"></i></button>
+          <div class="toolbar-divider"></div>
+          <button class="ctrl-btn" onclick="resetCanvasTransform()" title="Ajustar visualização (Reset)"><i data-lucide="maximize-2"></i></button>
+          <button class="ctrl-btn" onclick="toggleConnectorsHighlight()" id="btn-toggle-glow" title="Alternar destaque de conexões"><i data-lucide="activity"></i></button>
+        </div>
+
+        <!-- Canvas Quick Legend -->
+        <div class="canvas-legend-panel">
+          <div class="legend-title">
+            <span>Guia de Níveis</span>
+            <i data-lucide="info" style="width:14px;height:14px;"></i>
+          </div>
+          <div class="legend-items-list">
+            <div class="legend-item">
+              <span class="legend-indicator" style="background:#4338ca;"></span>
+              <span>Conselho Consultivo</span>
+            </div>
+            <div class="legend-item">
+              <span class="legend-indicator" style="background:var(--primary);"></span>
+              <span>CEO (Presidência Executiva)</span>
+            </div>
+            <div class="legend-item">
+              <span class="legend-indicator" style="background:#0284c7;"></span>
+              <span>Assessoria, Controle &amp; Governança</span>
+            </div>
+            <div class="legend-item">
+              <span class="legend-indicator" style="background:var(--on-surface-variant);"></span>
+              <span>Diretorias Operacionais e Negócios</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 2. ALTERNATIVE LIST/DIRECTORY VIEW -->
+      <div class="list-view-container" id="list-view-container"></div>
+    </main>
+
+    <!-- INFORMATIVE HOVER TOOLTIP -->
+    <div class="org-tooltip" id="org-tooltip" role="tooltip" aria-hidden="true">
+      <div class="tooltip-header">
+        <span class="tooltip-badge" id="tt-badge">Área</span>
+        <span style="font-size:0.7rem;color:var(--on-surface-muted);" id="tt-id">ID</span>
+      </div>
+      <div class="tooltip-title" id="tt-title">Cargo / Área</div>
+      <div class="tooltip-leader" id="tt-leader">Nome da Liderança</div>
+      <div class="tooltip-desc" id="tt-desc">Descrição das atribuições da área na Betha Sistemas.</div>
+      <div class="tooltip-onboarding-tip" id="tt-tip-box">
+        <span class="tooltip-tip-label">Dica de Onboarding:</span>
+        <span id="tt-tip">Como esta área interage com seu dia a dia na Betha.</span>
+      </div>
+    </div>
+
+    <!-- ONBOARDING DETAILS DRAWER -->
+    <div class="drawer-overlay" id="drawer-overlay" onclick="closeDrawer()"></div>
+    <aside class="detail-drawer" id="detail-drawer" aria-labelledby="drawer-role-title" aria-modal="true" role="dialog">
+      <div class="drawer-header">
+        <div class="drawer-title-group">
+          <span class="node-badge" id="drawer-badge" style="margin-bottom:4px;">Categoria</span>
+          <h2 class="brand-title" id="drawer-role-title" style="font-size:1.25rem;">Nome da Área</h2>
+          <span style="font-size:0.75rem;color:var(--on-surface-muted);" id="drawer-code">COD-00</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
+          <button class="btn btn-outline" style="height:36px;padding:0 12px;font-size:0.75rem;" onclick="openEditModal(selectedNodeId)" title="Editar dados desta liderança">
+            <i data-lucide="pencil" style="width:12px;height:12px;"></i> Editar
+          </button>
+          <button class="drawer-close-btn" onclick="closeDrawer()" title="Fechar painel (Esc)">
+            <i data-lucide="x"></i>
+          </button>
+        </div>
+      </div>
+
+      <div class="drawer-body">
+        <div class="drawer-profile-card">
+          <div class="drawer-profile-avatar" id="drawer-avatar">WB</div>
+          <div>
+            <div style="font-size:0.7rem;font-weight:700;text-transform:uppercase;color:var(--on-surface-muted);">Liderança Responsável</div>
+            <div style="font-size:1.05rem;font-weight:700;color:var(--on-surface);" id="drawer-leader-name">Nome do Líder</div>
+            <div style="font-size:0.8rem;color:var(--primary);font-weight:600;" id="drawer-leader-title">Cargo Oficial</div>
+          </div>
+        </div>
+
+        <div class="drawer-card">
+          <div class="drawer-section-title">
+            <i data-lucide="target"></i> Missão no Ecossistema Betha
+          </div>
+          <p style="font-size:0.875rem;color:var(--on-surface-variant);line-height:1.5;" id="drawer-mission"></p>
+        </div>
+
+        <div class="drawer-card" style="background:#f0fdf4;border-color:#bbf7d0;">
+          <div class="drawer-section-title" style="color:#166534;">
+            <i data-lucide="compass" style="color:#16a34a;"></i> Guia de Integração (Onboarding)
+          </div>
+          <p style="font-size:0.8125rem;color:#14532d;margin-bottom:0.75rem;" id="drawer-onboarding-overview"></p>
+          <ul class="onboarding-action-list" id="drawer-onboarding-actions"></ul>
+        </div>
+
+        <div class="drawer-card">
+          <div class="drawer-section-title">
+            <i data-lucide="network"></i> Conexões &amp; Interfaces Frequentes
+          </div>
+          <p style="font-size:0.78125rem;color:var(--on-surface-muted);">
+            Áreas com as quais esta diretoria mantém interface direta no dia a dia. Clique para navegar:
+          </p>
+          <div class="connections-pill-list" id="drawer-connections-list"></div>
+        </div>
+
+        <div class="drawer-card">
+          <div class="drawer-section-title">
+            <i data-lucide="message-square"></i> Comunicação &amp; Boas Práticas
+          </div>
+          <p style="font-size:0.8125rem;color:var(--on-surface-variant);line-height:1.45;" id="drawer-channels-info"></p>
+        </div>
+      </div>
+    </aside>
+
+    <!-- GUIDED TOUR MODAL -->
+    <div class="tour-modal-overlay" id="tour-modal-overlay">
+      <div class="tour-modal">
+        <div class="tour-modal-header">
+          <button type="button" class="tour-modal-edit-trigger" onclick="editCurrentTourStep()" title="Editar esta etapa e as configurações do tour">
+            <i data-lucide="pencil" style="width:12px;height:12px;"></i> Editar Tour
+          </button>
+          <span class="tour-step-badge" id="tour-step-label">Passo 1 de 6</span>
+          <h3 class="tour-modal-title" id="tour-step-title">Bem-vindo à Betha Sistemas!</h3>
+        </div>
+        <div class="tour-modal-body">
+          <div class="tour-highlight-box" id="tour-step-highlight"></div>
+          <p id="tour-step-text"></p>
+        </div>
+        <div class="tour-modal-footer">
+          <div class="tour-progress-dots" id="tour-dots-container"></div>
+          <div style="display:flex;gap:8px;">
+            <button class="btn btn-secondary" onclick="skipTour()" id="btn-tour-skip">Pular</button>
+            <button class="btn btn-primary" onclick="nextTourStep()" id="btn-next-tour">Próximo</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- =====================================================================
+       MODAIS DO MODO EDIÇÃO
+       ===================================================================== -->
+
+  <!-- 1. MODAL DE EDIÇÃO DE POSIÇÃO -->
+  <div id="modal-edit" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="modal-edit-title">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <div class="modal-title-icon"><i data-lucide="pencil"></i></div>
+          <h2 id="modal-edit-title" class="modal-title">Editar Posição</h2>
+        </div>
+        <button class="modal-close-btn" onclick="closeEditModal()" aria-label="Fechar modal">
+          <i data-lucide="x"></i>
+        </button>
+      </div>
+
+      <div class="modal-body">
+        <input type="hidden" id="edit-node-id">
+
+        <div class="avatar-preview-box">
+          <div id="edit-avatar-preview" class="avatar-live-circle">WB</div>
+          <div>
+            <div style="font-weight: 700; font-size: 0.95rem;" id="edit-preview-name">Nome do Colaborador</div>
+            <div style="font-size: 0.78rem; color: var(--on-surface-variant);" id="edit-preview-role">Cargo</div>
+          </div>
+        </div>
+
+        <div class="form-row-2col">
+          <div class="form-group">
+            <label class="form-label" for="edit-name">Nome do Colaborador *</label>
+            <input type="text" id="edit-name" class="form-input" placeholder="Ex: Wellington Rogerio Biagio Silva" oninput="syncEditPreview()">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="edit-role">Cargo / Posição *</label>
+            <input type="text" id="edit-role" class="form-input" placeholder="Ex: CEO" oninput="syncEditPreview()">
+          </div>
+        </div>
+
+        <div class="form-row-2col">
+          <div class="form-group">
+            <label class="form-label" for="edit-dept">Departamento / Categoria *</label>
+            <input type="text" id="edit-dept" class="form-input" placeholder="Ex: Presidência Executiva, Tecnologia..." oninput="syncEditPreview()">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="edit-code">Código Identificador</label>
+            <input type="text" id="edit-code" class="form-input" placeholder="Ex: EXEC-01, TEC-01">
+          </div>
+        </div>
+
+        <div class="form-row-2col">
+          <div class="form-group">
+            <label class="form-label" for="edit-level">
+              <i data-lucide="layers" style="width:14px;height:14px;"></i>
+              <span>Nível Hierárquico *</span>
+            </label>
+            <select id="edit-level" class="form-select" onchange="populateEditOrderSelect()">
+              <option value="conselho">Conselho Consultivo (Topo)</option>
+              <option value="ceo">Presidência Executiva (CEO)</option>
+              <option value="advisory">Assessoria, Controle &amp; Governança</option>
+              <option value="operational">Diretorias Operacionais e Negócios</option>
+              <option value="subordinate">Subordinado Direto (Abaixo do Superior)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="edit-order">
+              <i data-lucide="arrow-up-down" style="width:14px;height:14px;"></i>
+              <span>Posição / Ordem no Nível</span>
+            </label>
+            <select id="edit-order" class="form-select"></select>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="edit-reports-to">
+            <i data-lucide="git-merge" style="width:14px;height:14px;"></i>
+            <span>Superior Imediato (Reporta a)</span>
+          </label>
+          <select id="edit-reports-to" class="form-select" onchange="syncEditLevelOnParentChange()"></select>
+          <span class="form-hint">Define a conexão hierárquica direta do card no organograma.</span>
+        </div>
+
+        <div class="form-group" id="edit-reset-offset-row" style="display:none;">
+          <button type="button" class="btn btn-outline" style="width:100%;" onclick="resetSingleNodeOffset()">
+            <i data-lucide="align-center" style="width:14px;height:14px;"></i> Alinhar este card à posição padrão do nível
+          </button>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="edit-avatar">
+            <i data-lucide="image" style="width:14px;height:14px;"></i>
+            <span>URL da Fotografia</span>
+          </label>
+          <input type="url" id="edit-avatar" class="form-input" placeholder="https://... (ou deixe em branco para iniciais)" oninput="syncEditPreview()">
+          <span class="form-hint">Insira o link da foto para substituir as iniciais corporativas.</span>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="edit-mission">Missão &amp; Papel da Área</label>
+          <textarea id="edit-mission" class="form-textarea" rows="2" placeholder="Descreva as responsabilidades estratégicas e atribuições da área..."></textarea>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="edit-onb-summary">Resumo para o Novo Colaborador (Onboarding)</label>
+          <textarea id="edit-onb-summary" class="form-textarea" rows="2" placeholder="O que o novo colaborador precisa saber sobre esta área..."></textarea>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="edit-onb-actions">Ações Recomendadas no Onboarding (uma por linha)</label>
+          <textarea id="edit-onb-actions" class="form-textarea" rows="3" placeholder="Insira cada recomendação em uma linha separada..."></textarea>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="edit-channels">Canais de Contato &amp; Boas Práticas</label>
+          <input type="text" id="edit-channels" class="form-input" placeholder="Ex: Central no Workplace, canais no Teams...">
+        </div>
+      </div>
+
+      <div class="modal-footer" style="justify-content:space-between;">
+        <button type="button" class="btn btn-danger-outline" onclick="requestDeleteFromEditModal()" title="Remover este card do organograma">
+          <i data-lucide="trash-2"></i> Excluir Card
+        </button>
+        <div style="display:flex;align-items:center;gap:0.75rem;">
+          <button type="button" class="btn btn-outline" onclick="closeEditModal()">Cancelar</button>
+          <button type="button" class="btn btn-primary" onclick="saveNodeEdit()">
+            <i data-lucide="check"></i> Salvar Alterações
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. MODAL DE ADICIONAR NOVA POSIÇÃO -->
+  <div id="modal-add" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="modal-add-title">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <div class="modal-title-icon"><i data-lucide="user-plus"></i></div>
+          <h2 id="modal-add-title" class="modal-title">Nova Posição no Organograma</h2>
+        </div>
+        <button class="modal-close-btn" onclick="closeAddModal()" aria-label="Fechar modal">
+          <i data-lucide="x"></i>
+        </button>
+      </div>
+
+      <div class="modal-body">
+        <div class="form-row-2col">
+          <div class="form-group">
+            <label class="form-label" for="add-name">Nome do Colaborador *</label>
+            <input type="text" id="add-name" class="form-input" placeholder="Nome completo">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="add-role">Cargo / Posição *</label>
+            <input type="text" id="add-role" class="form-input" placeholder="Ex: Gerente de Projetos">
+          </div>
+        </div>
+
+        <div class="form-row-2col">
+          <div class="form-group">
+            <label class="form-label" for="add-dept">Departamento / Categoria *</label>
+            <input type="text" id="add-dept" class="form-input" placeholder="Ex: Tecnologia, Serviços...">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="add-code">Código Identificador</label>
+            <input type="text" id="add-code" class="form-input" placeholder="Ex: NOV-01">
+          </div>
+        </div>
+
+        <div class="form-row-2col">
+          <div class="form-group">
+            <label class="form-label" for="add-reports-to">Superior Imediato *</label>
+            <select id="add-reports-to" class="form-select" onchange="syncAddLevelDefault()"></select>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="add-level">Nível Hierárquico *</label>
+            <select id="add-level" class="form-select">
+              <option value="conselho">Conselho Consultivo (Topo)</option>
+              <option value="ceo">Presidência Executiva (CEO)</option>
+              <option value="advisory">Assessoria, Controle &amp; Governança</option>
+              <option value="operational" selected>Diretorias Operacionais e Negócios</option>
+              <option value="subordinate">Subordinado Direto (Abaixo do Superior)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="add-avatar">URL da Fotografia</label>
+          <input type="url" id="add-avatar" class="form-input" placeholder="https://... (ou deixe em branco para iniciais)">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="add-mission">Missão / Atribuições</label>
+          <textarea id="add-mission" class="form-textarea" rows="2" placeholder="Papel desta posição no ecossistema Betha..."></textarea>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="closeAddModal()">Cancelar</button>
+        <button class="btn btn-primary" onclick="createNode()">
+          <i data-lucide="plus"></i> Adicionar Posição
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. MODAL DE BACKUP & EXPORTAÇÃO -->
+  <div id="modal-export" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="modal-export-title">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <div class="modal-title-icon"><i data-lucide="database"></i></div>
+          <h2 id="modal-export-title" class="modal-title">Backup &amp; Gerenciamento de Dados</h2>
+        </div>
+        <button class="modal-close-btn" onclick="closeExportModal()" aria-label="Fechar modal">
+          <i data-lucide="x"></i>
+        </button>
+      </div>
+
+      <div class="modal-body">
+        <p style="color:var(--on-surface-variant);font-size:0.875rem;">
+          Gerencie as modificações feitas no organograma. Você pode baixar uma cópia JSON de segurança com todos os ajustes, restaurar um arquivo salvo ou redefinir para a estrutura padrão.
+        </p>
+
+        <div style="display:flex;flex-direction:column;gap:0.75rem;margin-top:0.5rem;">
+          <div class="backup-option-card">
+            <div>
+              <strong style="display:block;font-size:0.875rem;">Baixar Arquivo JSON</strong>
+              <span style="font-size:0.75rem;color:var(--on-surface-muted);">Salva todas as posições, fotos e textos editados.</span>
+            </div>
+            <button class="btn btn-primary" onclick="exportDataJSON()">
+              <i data-lucide="download"></i> Download JSON
+            </button>
+          </div>
+
+          <div class="backup-option-card">
+            <div>
+              <strong style="display:block;font-size:0.875rem;">Carregar Arquivo JSON</strong>
+              <span style="font-size:0.75rem;color:var(--on-surface-muted);">Importa uma estrutura salva anteriormente.</span>
+            </div>
+            <label class="btn btn-secondary" style="cursor:pointer;margin:0;">
+              <i data-lucide="upload"></i> Carregar
+              <input type="file" id="json-file-input" accept=".json" style="display:none;" onchange="importDataJSON(event)">
+            </label>
+          </div>
+
+          <div class="backup-option-card">
+            <div>
+              <strong style="display:block;font-size:0.875rem;color:var(--secondary);">Restaurar Estrutura Original</strong>
+              <span style="font-size:0.75rem;color:var(--on-surface-muted);">Retorna aos líderes oficiais da Betha Sistemas.</span>
+            </div>
+            <button class="btn btn-outline" onclick="restoreDefaultOrg()">
+              <i data-lucide="rotate-ccw"></i> Restaurar Padrão
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="closeExportModal()">Fechar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4. MODAL DE CONFIRMAÇÃO DE EXCLUSÃO INDIVIDUAL DE CARD -->
+  <div id="modal-confirm-delete" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="modal-delete-title">
+    <div class="modal-dialog" style="max-width:460px;">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <div class="modal-title-icon" style="background:var(--error-container);color:var(--error);"><i data-lucide="trash-2"></i></div>
+          <h2 id="modal-delete-title" class="modal-title">Excluir Card</h2>
+        </div>
+        <button class="modal-close-btn" onclick="closeConfirmDeleteModal()" aria-label="Fechar modal">
+          <i data-lucide="x"></i>
+        </button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="delete-target-id">
+        <p style="font-size:0.9rem;color:var(--on-surface);line-height:1.5;">
+          Tem certeza que deseja excluir o card <strong id="delete-target-label">selecionado</strong>?
+        </p>
+        <p style="font-size:0.8rem;color:var(--on-surface-variant);line-height:1.45;background:var(--surface-container);padding:0.75rem;border-radius:var(--rounded-sm);border:1px solid var(--outline-variant);">
+          Apenas este card será removido do organograma. Os demais cards, suas informações e posições hierárquicas não serão alterados ou reorganizados.
+        </p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline" onclick="closeConfirmDeleteModal()">Cancelar</button>
+        <button type="button" class="btn btn-danger" onclick="confirmDeleteNode()">
+          <i data-lucide="trash-2"></i> Confirmar Exclusão
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 5. MODAL DE EDIÇÃO DO TOUR DE ONBOARDING -->
+  <div id="modal-edit-tour" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="modal-edit-tour-title">
+    <div class="modal-dialog" style="max-width:680px;">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <div class="modal-title-icon"><i data-lucide="sparkles"></i></div>
+          <h2 id="modal-edit-tour-title" class="modal-title">Editar Tour de Onboarding</h2>
+        </div>
+        <button type="button" class="modal-close-btn" onclick="closeTourEditModal()" aria-label="Fechar modal">
+          <i data-lucide="x"></i>
+        </button>
+      </div>
+
+      <div class="modal-body">
+        <div class="tour-editor-section-title">Configuração do Botão e Controles do Tour</div>
+
+        <div class="form-row-2col">
+          <div class="form-group">
+            <label class="form-label" for="tour-edit-btn-label">Texto do Botão *</label>
+            <input type="text" id="tour-edit-btn-label" class="form-input" placeholder="Ex: Tour de Onboarding">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="tour-edit-btn-icon">Ícone do Botão</label>
+            <select id="tour-edit-btn-icon" class="form-select">
+              <option value="sparkles">Estrelas (sparkles)</option>
+              <option value="compass">Bússola (compass)</option>
+              <option value="map">Mapa (map)</option>
+              <option value="book-open">Guia / Livro (book-open)</option>
+              <option value="play-circle">Iniciar (play-circle)</option>
+              <option value="help-circle">Ajuda (help-circle)</option>
+              <option value="info">Informação (info)</option>
+              <option value="award">Destaque (award)</option>
+              <option value="flag">Marco (flag)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="tour-edit-btn-title">Dica ao Passar o Mouse (Tooltip opcional)</label>
+          <input type="text" id="tour-edit-btn-title" class="form-input" placeholder="Ex: Iniciar apresentação guiada para novos colaboradores">
+        </div>
+
+        <div class="form-row-3col">
+          <div class="form-group">
+            <label class="form-label" for="tour-edit-skip-label">Botão Pular</label>
+            <input type="text" id="tour-edit-skip-label" class="form-input" placeholder="Pular">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="tour-edit-next-label">Botão Avançar</label>
+            <input type="text" id="tour-edit-next-label" class="form-input" placeholder="Próximo">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="tour-edit-finish-label">Botão Concluir</label>
+            <input type="text" id="tour-edit-finish-label" class="form-input" placeholder="Concluir Tour">
+          </div>
+        </div>
+
+        <div class="tour-editor-section-title" style="display:flex;align-items:center;justify-content:space-between;">
+          <span>Etapas e Orientações do Tour</span>
+          <span id="tour-editing-step-indicator" style="font-size:0.7rem;color:var(--on-surface-muted);text-transform:none;font-weight:600;">Editando Etapa 1 de 6</span>
+        </div>
+
+        <div class="tour-steps-tabs" id="tour-steps-tabs"></div>
+
+        <div class="form-row-2col">
+          <div class="form-group">
+            <label class="form-label" for="tour-step-edit-label">Rótulo do Passo (opcional)</label>
+            <input type="text" id="tour-step-edit-label" class="form-input" placeholder="Deixe vazio para 'Passo X de Y'" oninput="syncActiveTourStepFromForm()">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="tour-step-edit-target">Card em Destaque no Organograma</label>
+            <select id="tour-step-edit-target" class="form-select" onchange="syncActiveTourStepFromForm()"></select>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="tour-step-edit-title">Título da Etapa *</label>
+          <input type="text" id="tour-step-edit-title" class="form-input" placeholder="Título exibido no cabeçalho da etapa" oninput="syncActiveTourStepFromForm()">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="tour-step-edit-highlight">Texto de Destaque (Caixa Azul)</label>
+          <textarea id="tour-step-edit-highlight" class="form-textarea" rows="2" placeholder="Resumo ou mensagem principal destacada..." oninput="syncActiveTourStepFromForm()"></textarea>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="tour-step-edit-text">Conteúdo e Orientações da Etapa *</label>
+          <textarea id="tour-step-edit-text" class="form-textarea" rows="3" placeholder="Texto explicativo completo apresentado durante esta etapa do tour..." oninput="syncActiveTourStepFromForm()"></textarea>
+        </div>
+
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;padding-top:4px;">
+          <div style="display:flex;align-items:center;gap:6px;">
+            <button type="button" class="btn btn-outline" style="height:32px;padding:0 10px;font-size:0.75rem;" onclick="moveTourStep(-1)" title="Mover etapa para antes">
+              <i data-lucide="arrow-left" style="width:13px;height:13px;"></i> Anterior
+            </button>
+            <button type="button" class="btn btn-outline" style="height:32px;padding:0 10px;font-size:0.75rem;" onclick="moveTourStep(1)" title="Mover etapa para depois">
+              Próxima <i data-lucide="arrow-right" style="width:13px;height:13px;"></i>
+            </button>
+          </div>
+          <button type="button" class="btn btn-danger-outline" style="height:32px;padding:0 12px;font-size:0.75rem;" onclick="deleteActiveTourStep()">
+            <i data-lucide="trash-2"></i> Excluir Etapa
+          </button>
+        </div>
+      </div>
+
+      <div class="modal-footer" style="justify-content:space-between;flex-wrap:wrap;">
+        <button type="button" class="btn btn-outline" onclick="restoreDefaultTour()" title="Restaurar textos e etapas originais do Tour">
+          <i data-lucide="rotate-ccw"></i> Restaurar Padrão
+        </button>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <button type="button" class="btn btn-outline" onclick="closeTourEditModal()">Cancelar</button>
+          <button type="button" class="btn btn-secondary" onclick="saveTourConfig(true)">
+            <i data-lucide="play"></i> Salvar e Testar
+          </button>
+          <button type="button" class="btn btn-primary" onclick="saveTourConfig(false)">
+            <i data-lucide="check"></i> Salvar
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CONTAINER DE TOAST FLUTUANTE -->
+  <div id="toast-container" class="toast-container" aria-live="polite"></div>
+
+  <!-- Scripts Modulares (ordem importa) -->
+  <script src="js/data.js"></script>
+  <script src="js/storage.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
