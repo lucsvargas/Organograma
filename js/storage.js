@@ -1,5 +1,5 @@
 /* ==========================================================================
-   CAMADA DE PERSISTÊNCIA GLOBAL (VERCEL API) + FALLBACK LOCALSTORAGE
+   CAMADA DE PERSISTÊNCIA GLOBAL (VERCEL API) + CONTROLE DE ACESSO POR PIN
    ========================================================================== */
 const STORAGE_KEYS = {
   orgData: 'betha_org_data_v7',
@@ -12,6 +12,8 @@ const OrgStorage = {
   apiEndpoint: '/api/organograma',
   isCloudEnabled: false,
   requiresPin: false,
+  pinVerified: false,
+  hasFetchedCloud: false,
   saveTimer: null,
 
   updateSyncBadge(status, label) {
@@ -65,30 +67,85 @@ const OrgStorage = {
       const data = await res.json();
       this.isCloudEnabled = Boolean(data.configured);
       this.requiresPin = Boolean(data.requiresPin);
+      this.hasFetchedCloud = true;
       this.updateSyncBadge('online', 'Nuvem ativa');
       return data.state || null;
     } catch (err) {
       this.isCloudEnabled = false;
+      this.hasFetchedCloud = true;
       this.updateSyncBadge('local', 'Modo local');
       return null;
     }
   },
 
-  getAdminPin(forcePrompt = false) {
-    let pin = sessionStorage.getItem(STORAGE_KEYS.adminPin) || '';
-    if ((!pin && this.requiresPin) || forcePrompt) {
-      pin = window.prompt('Digite o PIN de administrador para publicar alterações para todos os usuários:') || '';
-      if (pin) sessionStorage.setItem(STORAGE_KEYS.adminPin, pin);
+  async verifyPinWithServer(pin) {
+    try {
+      const res = await fetch(this.apiEndpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-admin-pin': pin
+        },
+        body: JSON.stringify({ action: 'verify-pin' })
+      });
+      return res.ok;
+    } catch (err) {
+      console.error('Erro ao validar PIN:', err);
+      return false;
     }
-    return pin;
   },
 
-  async pushCloudState(payload, retryOnAuth = true) {
+  async ensureEditAccess() {
+    if (!this.hasFetchedCloud) {
+      await this.fetchCloudState();
+    }
+
+    // Se estiver rodando localmente sem servidor ou sem ADMIN_PIN configurado, libera direto
+    if (!this.isCloudEnabled || !this.requiresPin) {
+      this.pinVerified = true;
+      return true;
+    }
+
+    if (this.pinVerified && sessionStorage.getItem(STORAGE_KEYS.adminPin)) {
+      return true;
+    }
+
+    // Se já houver um PIN salvo na sessão da aba, valida silenciosamente primeiro
+    let cachedPin = sessionStorage.getItem(STORAGE_KEYS.adminPin);
+    if (cachedPin) {
+      const validCached = await this.verifyPinWithServer(cachedPin);
+      if (validCached) {
+        this.pinVerified = true;
+        return true;
+      }
+      sessionStorage.removeItem(STORAGE_KEYS.adminPin);
+    }
+
+    // Pede a senha antes de entrar na tela de edição
+    const enteredPin = window.prompt('Área restrita. Digite a senha de administrador para acessar o Modo Edição:');
+    if (!enteredPin) {
+      return false;
+    }
+
+    const isValid = await this.verifyPinWithServer(enteredPin.trim());
+    if (!isValid) {
+      if (typeof showToast === 'function') {
+        showToast('Senha incorreta. Acesso ao Modo Edição negado.', 'warning');
+      }
+      return false;
+    }
+
+    sessionStorage.setItem(STORAGE_KEYS.adminPin, enteredPin.trim());
+    this.pinVerified = true;
+    return true;
+  },
+
+  async pushCloudState(payload) {
     if (!this.isCloudEnabled) return false;
 
     this.updateSyncBadge('loading', 'Salvando...');
     const headers = { 'Content-Type': 'application/json' };
-    const pin = this.getAdminPin(false);
+    const pin = sessionStorage.getItem(STORAGE_KEYS.adminPin) || '';
     if (pin) headers['x-admin-pin'] = pin;
 
     try {
@@ -98,13 +155,12 @@ const OrgStorage = {
         body: JSON.stringify(payload)
       });
 
-      if (res.status === 401 && retryOnAuth) {
+      if (res.status === 401) {
         sessionStorage.removeItem(STORAGE_KEYS.adminPin);
-        const newPin = this.getAdminPin(true);
-        if (newPin) return this.pushCloudState(payload, false);
+        this.pinVerified = false;
         this.updateSyncBadge('local', 'Sem permissão');
         if (typeof showToast === 'function') {
-          showToast('Alteração salva apenas neste navegador (PIN inválido).', 'warning');
+          showToast('Sessão expirada ou senha inválida. Entre novamente no Modo Edição.', 'warning');
         }
         return false;
       }
