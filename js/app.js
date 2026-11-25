@@ -214,7 +214,6 @@ function applyTourButtonUI() {
    INICIALIZAÇÃO (LOCAL IMEDIATO + SINCRONIZAÇÃO GLOBAL DA NUVEM)
    ========================================================================== */
 window.addEventListener('DOMContentLoaded', async function() {
-  // 1. Renderização imediata com cache local (caso exista)
   const localState = OrgStorage.loadLocal();
   applyPersistedState(localState);
 
@@ -226,7 +225,6 @@ window.addEventListener('DOMContentLoaded', async function() {
   centerCanvasInViewport();
   renderSvgConnections();
 
-  // 2. Busca o estado global oficial salvo na Vercel para todos os usuários
   const cloudState = await OrgStorage.fetchCloudState();
   if (cloudState && applyPersistedState(cloudState)) {
     OrgStorage.saveLocal({
@@ -243,7 +241,6 @@ window.addEventListener('DOMContentLoaded', async function() {
     renderSvgConnections();
   }
 
-  // 3. Re-alinhamento automático ao carregar fontes/janela
   window.addEventListener('load', function() {
     renderAllIcons();
     if (!userHasAdjustedView) centerCanvasInViewport();
@@ -3077,7 +3074,7 @@ function escapeHtml(str) {
     .replace(/</g, '<')
     .replace(/>/g, '>')
     .replace(/"/g, '"')
-    .replace(/'/g, ''');
+    .replace(/'/g, '\x26#39;');
 }
 
 function showToast(msg, type = 'info') {
