@@ -1,50 +1,45 @@
+import { createClient } from 'redis';
+
 const STATE_KEY = 'betha:organograma:state:v1';
+let redisClient = null;
 
-function getRedisConfig() {
-  const url = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
-  const token = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
-  return { url, token };
-}
+async function getRedisClient() {
+  if (!process.env.REDIS_URL) {
+    throw new Error('REDIS_URL não configurada.');
+  }
 
-async function redisGet(url, token, key) {
-  const res = await fetch(`${url}/get/${encodeURIComponent(key)}`, {
-    headers: { Authorization: `Bearer ${token}` }
-  });
-  if (!res.ok) throw new Error(`Redis GET falhou (${res.status})`);
-  const data = await res.json();
-  return data.result ? JSON.parse(data.result) : null;
-}
+  if (!redisClient) {
+    redisClient = createClient({ url: process.env.REDIS_URL });
+    redisClient.on('error', (err) => console.error('[Redis] Erro:', err));
+  }
 
-async function redisSet(url, token, key, value) {
-  const res = await fetch(`${url}/set/${encodeURIComponent(key)}`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify(value)
-  });
-  if (!res.ok) throw new Error(`Redis SET falhou (${res.status})`);
-  return res.json();
+  if (!redisClient.isOpen) {
+    await redisClient.connect();
+  }
+
+  return redisClient;
 }
 
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store, max-age=0');
 
-  const { url, token } = getRedisConfig();
-  if (!url || !token) {
+  if (!process.env.REDIS_URL) {
     return res.status(503).json({
-      error: 'Banco de dados não configurado na Vercel (KV_REST_API_URL / UPSTASH_REDIS_REST_URL).'
+      error: 'Banco de dados não configurado na Vercel (REDIS_URL ausente).'
     });
   }
 
   try {
+    const redis = await getRedisClient();
+
     if (req.method === 'GET') {
-      const state = await redisGet(url, token, STATE_KEY);
+      const raw = await redis.get(STATE_KEY);
+      const state = raw ? JSON.parse(raw) : null;
+
       return res.status(200).json({
         configured: true,
         requiresPin: Boolean(process.env.ADMIN_PIN),
-        state: state || null
+        state
       });
     }
 
@@ -69,7 +64,7 @@ export default async function handler(req, res) {
         updatedAt: new Date().toISOString()
       };
 
-      await redisSet(url, token, STATE_KEY, payloadToStore);
+      await redis.set(STATE_KEY, JSON.stringify(payloadToStore));
       return res.status(200).json({ ok: true, updatedAt: payloadToStore.updatedAt });
     }
 
