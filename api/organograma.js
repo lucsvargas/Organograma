@@ -30,9 +30,8 @@ export default async function handler(req, res) {
   }
 
   try {
-    const redis = await getRedisClient();
-
     if (req.method === 'GET') {
+      const redis = await getRedisClient();
       const raw = await redis.get(STATE_KEY);
       const state = raw ? JSON.parse(raw) : null;
 
@@ -53,6 +52,12 @@ export default async function handler(req, res) {
       }
 
       const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
+
+      // Rota rápida apenas para validar a senha antes de abrir o Modo Edição
+      if (body && body.action === 'verify-pin') {
+        return res.status(200).json({ ok: true, valid: true });
+      }
+
       if (!body || typeof body.customOrgData !== 'object') {
         return res.status(400).json({ error: 'Payload inválido.' });
       }
@@ -64,6 +69,7 @@ export default async function handler(req, res) {
         updatedAt: new Date().toISOString()
       };
 
+      const redis = await getRedisClient();
       await redis.set(STATE_KEY, JSON.stringify(payloadToStore));
       return res.status(200).json({ ok: true, updatedAt: payloadToStore.updatedAt });
     }
